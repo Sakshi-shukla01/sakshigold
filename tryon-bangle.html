@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual Try-On - Bangles</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    video, canvas { position: absolute; top: 0; left: 0; }
+    .btn-back {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      background: white;
+      color: black;
+      padding: 10px 15px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="btn-back">← Back</a>
+
+<video id="camera" autoplay muted playsinline width="640" height="480"></video>
+<canvas id="overlay" width="640" height="480"></canvas>
+
+<!-- MediaPipe Hands + Camera Utils -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+  const video = document.getElementById('camera');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+
+  const params = new URLSearchParams(window.location.search);
+  const imageSrc = params.get("image") || "images/default_bangle.png"; // fallback
+
+  const bangleImg = new Image();
+  bangleImg.src = imageSrc;
+
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.7
+  });
+
+  hands.onResults((results) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && bangleImg.complete) {
+      const landmarks = results.multiHandLandmarks[0];
+
+      // Use wrist base (0) and mid forearm (10) to estimate arm
+      const wrist = landmarks[0];
+      const base = landmarks[10];
+
+      const wristX = wrist.x * canvas.width;
+      const wristY = wrist.y * canvas.height;
+
+      const baseX = base.x * canvas.width;
+      const baseY = base.y * canvas.height;
+
+      const dx = baseX - wristX;
+      const dy = baseY - wristY;
+      const angle = Math.atan2(dy, dx);
+
+      // Dynamically scale bangle based on hand size
+      const handLength = Math.hypot(dx, dy);
+      const bangleWidth = handLength * 1.4;
+      const bangleHeight = bangleWidth * 0.65;
+
+      // Offset so it wraps nicely above the wrist
+      const offsetY = 10;
+
+      ctx.save();
+      ctx.translate(wristX, wristY + offsetY);
+      ctx.rotate(angle);
+      ctx.drawImage(bangleImg, -bangleWidth / 2, -bangleHeight / 2, bangleWidth, bangleHeight);
+      ctx.restore();
+    }
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => {
+      await hands.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+</script>
+
+</body>
+</html>

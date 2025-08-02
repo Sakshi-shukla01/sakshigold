@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual Ring Try-On</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .btn-back {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="btn-back">← Back</a>
+
+<video id="camera" autoplay muted playsinline width="640" height="480"></video>
+<canvas id="overlay" width="640" height="480"></canvas>
+
+<!-- MediaPipe Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+  const video = document.getElementById('camera');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+
+  const params = new URLSearchParams(window.location.search);
+  const rawRingSrc = params.get("image") || "images/ring11.png";
+
+  // Cache-busting with timestamp to ensure image refreshes even if name is same
+  const ringSrc = `${rawRingSrc}?v=${new Date().getTime()}`;
+
+  const ringImg = new Image();
+  ringImg.src = ringSrc;
+
+  const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  });
+
+  hands.setOptions({
+    maxNumHands: 2,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.7
+  });
+
+  hands.onResults((results) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      results.multiHandLandmarks.forEach((landmarks) => {
+        const base = landmarks[13]; // Ring finger base
+        const tip = landmarks[14];  // Ring finger tip
+
+        const x = base.x * canvas.width + 6;
+        const y = base.y * canvas.height - 6;
+
+        const dx = (tip.x - base.x) * canvas.width;
+        const dy = (tip.y - base.y) * canvas.height;
+        const angle = Math.atan2(dy, dx) - Math.PI / 2;
+
+        const ringWidth = 90;
+        const ringHeight = 50;
+
+        if (ringImg.complete) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(angle);
+          ctx.drawImage(ringImg, -ringWidth / 2, -ringHeight / 2, ringWidth, ringHeight);
+          ctx.restore();
+        }
+      });
+    }
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => {
+      await hands.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+</script>
+
+</body>
+</html>

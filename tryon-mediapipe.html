@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual Earrings Try-On</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas, video { position: absolute; top: 0; left: 0; }
+    #overlay { z-index: 2; }
+    .btn-back {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      background: white;
+      color: black;
+      padding: 10px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="btn-back">← Back</a>
+<video id="camera" autoplay muted playsinline width="640" height="480"></video>
+<canvas id="overlay" width="640" height="480"></canvas>
+
+<!-- MediaPipe Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+  const video = document.getElementById('camera');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+
+  const params = new URLSearchParams(window.location.search);
+  const imageSrc = params.get("image"); // e.g., images/earrings1.png
+  const category = params.get("category"); // 'earrings'
+
+  const fullImg = new Image();
+  const leftImg = new Image();
+  const rightImg = new Image();
+
+  fullImg.onload = () => {
+    const halfW = fullImg.width / 2;
+    const h = fullImg.height;
+
+    // Split the full image into left and right earrings
+    const leftCanvas = document.createElement("canvas");
+    leftCanvas.width = halfW;
+    leftCanvas.height = h;
+    const lctx = leftCanvas.getContext("2d");
+    lctx.drawImage(fullImg, 0, 0, halfW, h, 0, 0, halfW, h);
+    leftImg.src = leftCanvas.toDataURL();
+
+    const rightCanvas = document.createElement("canvas");
+    rightCanvas.width = halfW;
+    rightCanvas.height = h;
+    const rctx = rightCanvas.getContext("2d");
+    rctx.drawImage(fullImg, halfW, 0, halfW, h, 0, 0, halfW, h);
+    rightImg.src = rightCanvas.toDataURL();
+  };
+
+  fullImg.src = imageSrc;
+
+  const faceMesh = new FaceMesh({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+  });
+
+  faceMesh.setOptions({
+    maxNumFaces: 1,
+    refineLandmarks: true,
+    minDetectionConfidence: 0.7,
+    minTrackingConfidence: 0.7
+  });
+
+  faceMesh.onResults((results) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+    const landmarks = results.multiFaceLandmarks[0];
+
+    if (category === "earrings" && leftImg.complete && rightImg.complete) {
+      const left = landmarks[234];  // Left earlobe approx
+      const right = landmarks[454]; // Right earlobe approx
+
+      const size = 42;
+      const offsetY = 28;       // 🧠 Closer to real earlobe
+      const leftOffsetX = 12;   // ✅ Best match for real left earlobe
+      const rightOffsetX = 10;  // ✅ Best match for real right earlobe
+
+      // Draw left earring
+      ctx.drawImage(
+        leftImg,
+        left.x * canvas.width - size / 2 - leftOffsetX,
+        left.y * canvas.height - size / 2 + offsetY,
+        size,
+        size
+      );
+
+      // Draw right earring
+      ctx.drawImage(
+        rightImg,
+        right.x * canvas.width - size / 2 + rightOffsetX,
+        right.y * canvas.height - size / 2 + offsetY,
+        size,
+        size
+      );
+    }
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => {
+      await faceMesh.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Virtual Anklet Try-On</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    video, canvas { position: absolute; top: 0; left: 0; }
+    .btn-back {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      background: white;
+      color: black;
+      padding: 10px 15px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<a href="javascript:history.back()" class="btn-back">← Back</a>
+
+<video id="camera" autoplay muted playsinline width="640" height="480"></video>
+<canvas id="overlay" width="640" height="480"></canvas>
+
+<!-- MediaPipe Pose + Camera Utils -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+  const video = document.getElementById('camera');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+
+  const params = new URLSearchParams(window.location.search);
+  const imageSrc = params.get("image") || "images/default_anklet.png";
+
+  const ankletImg = new Image();
+  ankletImg.src = imageSrc;
+
+  const pose = new Pose({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+  });
+
+  pose.onResults((results) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (results.poseLandmarks && ankletImg.complete) {
+      const lm = results.poseLandmarks;
+
+      const leftAnkle = lm[27];
+      const rightAnkle = lm[28];
+
+      if (leftAnkle && rightAnkle) {
+        const canvasW = canvas.width;
+        const canvasH = canvas.height;
+
+        const x = ((leftAnkle.x + rightAnkle.x) / 2) * canvasW;
+        const y = ((leftAnkle.y + rightAnkle.y) / 2) * canvasH;
+
+        const ankletWidth = Math.abs(rightAnkle.x - leftAnkle.x) * canvasW * 2;
+        const ankletHeight = ankletWidth * 0.4;
+
+        ctx.drawImage(
+          ankletImg,
+          x - ankletWidth / 2,
+          y - ankletHeight / 2,
+          ankletWidth,
+          ankletHeight
+        );
+      } else {
+        ctx.fillStyle = "red";
+        ctx.font = "16px sans-serif";
+        ctx.fillText("Please make your ankle fully visible to the camera.", 20, 30);
+      }
+    }
+  });
+
+  const camera = new Camera(video, {
+    onFrame: async () => {
+      await pose.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+</script>
+
+</body>
+</html>
