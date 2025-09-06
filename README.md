@@ -37,7 +37,7 @@ Start **Apache** and **MySQL** from the control panel.
 
 ### 2. Clone the Repository
 ```bash
-git clone https://github.com/your-username/sakshigold.git
+git clone https://github.com/Sakshi-shukla01/sakshigold.git
 cd sakshigold
 
 
