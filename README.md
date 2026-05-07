@@ -1,6 +1,6 @@
 # Sakshi Gold - Virtual Jewelry Try-On
 
-A web-based virtual jewelry shopping platform with **try-on features**, live gold pricing (GoldAPI), and cart/checkout functionality.
+A web-based virtual jewelry shopping platform with **try-on features**, live gold pricing (GoldAPI), and cart/checkout functionality..
 
 ---
 
